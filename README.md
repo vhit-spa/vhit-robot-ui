@@ -1,20 +1,21 @@
 # VHIT Robot UI
 
-ROS 2 gateway for controlling the VHIT robot from user-interface inputs.
+ROS 2 gateway for controlling the VHIT ELAC robot through keyboard input, the
+built-in web interface, or a ROS topic.
 
-The repository currently provides the `vhit_robot_ui_gateway` Python package.
-It translates left- and right-arrow key presses into signed jog commands for
-the ELAC tester. A graphical or web frontend is not included yet.
+The `vhit_robot_ui_gateway` package converts commands from the selected input
+mode into signed jog messages for `vhit_elac_tester`. It also monitors joint
+state feedback and rejects commands when feedback is unavailable or more than
+one second old.
 
-## Current Functionality
+## Features
 
-- Publishes jog commands as `std_msgs/msg/Int8` messages.
-- Uses `/elac_tester_node/jog` as the default jog topic.
-- Maps the left arrow to a negative jog (`-1`).
-- Maps the right arrow to a positive jog (`1`).
-- Reads keyboard input without blocking the ROS executor.
-- Restores the terminal configuration when the node exits normally or through
-  Ctrl+C.
+- Three mutually exclusive control modes: `keyboard`, `web`, and `topic`.
+- Publishes signed jog commands as `std_msgs/msg/Int8` messages.
+- Uses `/elac_tester_node/jog` as the default output topic.
+- Maps negative/left commands to `-1` and positive/right commands to `1`.
+- Monitors the configured joint through `sensor_msgs/msg/JointState`.
+- Provides a browser UI with position feedback in `web` mode.
 
 The gateway publishes only the jog direction. The target increment, trajectory
 duration, and position limits are managed by `vhit_elac_tester`.
@@ -27,13 +28,16 @@ vhit-robot-ui/
 └── ros/
     └── src/
         └── vhit_robot_ui_gateway/
-            ├── package.xml
-            ├── setup.py
+            ├── launch/
+            │   └── gateway.launch.py
             ├── test/
-            └── vhit_robot_ui_gateway/
-                ├── gateway_node.py
-                ├── jog_publisher.py
-                └── keyboard_controller.py
+            ├── vhit_robot_ui_gateway/
+            │   ├── api_server.py
+            │   ├── gateway_node.py
+            │   ├── jog_publisher.py
+            │   ├── keyboard_controller.py
+            │   └── state_store.py
+            └── www/
 ```
 
 ## Requirements
@@ -42,10 +46,13 @@ vhit-robot-ui/
 - Python 3
 - `rclpy`
 - `std_msgs`
-- An active subscriber for the jog topic, normally `elac_tester_node` from the
-  `vhit_elac_tester` package
+- `sensor_msgs`
+- `ament_index_python`
+- An active subscriber for the output jog topic, normally
+  `elac_tester_node` from the `vhit_elac_tester` package
+- Joint state feedback containing the configured joint name
 
-Keyboard control also requires an interactive terminal. It will not start when
+Keyboard mode also requires an interactive terminal. It cannot start when
 standard input is redirected or no TTY is available.
 
 ## Build
@@ -82,84 +89,158 @@ received direction command.
 
 ## Run the Gateway
 
-In another interactive terminal:
+Run one of the following modes in a separate terminal after sourcing the UI
+workspace:
 
 ```bash
 cd /home/<user>/vhit-robot-ui/ros
 source /opt/ros/humble/setup.bash
 source install/setup.bash
-ros2 run vhit_robot_ui_gateway gateway_node --ros-args \
-  -p keyboard_control:=true
 ```
 
-Keyboard controls:
+Only one control mode is active for each gateway process.
+
+### Keyboard mode
+
+Keyboard mode reads arrow keys directly from the terminal:
+
+```bash
+ros2 launch vhit_robot_ui_gateway gateway.launch.py \
+  control_mode:=keyboard
+```
 
 | Key | Result |
 | --- | --- |
-| Left arrow | Publish `-1` for a negative jog. |
-| Right arrow | Publish `1` for a positive jog. |
+| Left arrow | Request a negative jog (`-1`). |
+| Right arrow | Request a positive jog (`1`). |
 | `Q` | Stop the gateway. |
 | Ctrl+C | Stop the gateway. |
 
 Holding an arrow key can generate repeated terminal key events and therefore
 multiple jog commands.
 
-## ROS Interface
+### Web mode
 
-### Published topic
-
-| Topic | Type | Description |
-| --- | --- | --- |
-| `/elac_tester_node/jog` | `std_msgs/msg/Int8` | Signed jog direction. Only `-1` and `1` are published. |
-
-The topic can be tested without the gateway:
+Web mode starts the HTTP server and built-in browser interface:
 
 ```bash
-ros2 topic pub --once /elac_tester_node/jog \
+ros2 launch vhit_robot_ui_gateway gateway.launch.py \
+  control_mode:=web \
+  web_host:=127.0.0.1 \
+  web_port:=8080
+```
+
+Open `http://127.0.0.1:8080` in a browser. Use the left and right buttons or
+the browser's left and right arrow keys to jog. The page displays the latest
+position of the configured joint.
+
+The default host accepts connections only from the local machine. To expose
+the interface on all network interfaces, set `web_host:=0.0.0.0` and apply the
+appropriate firewall and network-access restrictions.
+
+The web server also exposes these endpoints:
+
+| Method and path | Description |
+| --- | --- |
+| `GET /api/v1/state` | Return the latest configured joint state and feedback freshness. |
+| `POST /api/v1/jog` | Queue a jog using JSON such as `{"direction": 1}` or `{"direction": -1}`. |
+
+### Topic mode
+
+Topic mode subscribes to an input jog topic and forwards valid commands to the
+ELAC tester jog topic. It is the default mode:
+
+```bash
+ros2 launch vhit_robot_ui_gateway gateway.launch.py \
+  control_mode:=topic
+```
+
+Publish a positive or negative command from another sourced terminal:
+
+```bash
+ros2 topic pub --once /vhit_robot_ui_gateway/jog \
   std_msgs/msg/Int8 "{data: 1}"
 ```
 
 ```bash
-ros2 topic pub --once /elac_tester_node/jog \
+ros2 topic pub --once /vhit_robot_ui_gateway/jog \
   std_msgs/msg/Int8 "{data: -1}"
 ```
 
-### Parameters
+Only `-1` and `1` are accepted. Other values are rejected. The input and
+output topics may be changed independently, which allows the gateway to sit
+between an arbitrary command source and `vhit_elac_tester`.
 
-| Parameter | Default | Description |
-| --- | --- | --- |
-| `jog_topic` | `/elac_tester_node/jog` | Topic on which signed jog commands are published. |
-| `keyboard_control` | `false` | Enable interactive left- and right-arrow keyboard input. |
+## Parameters
 
-To publish on a different topic:
+The launch arguments below are passed to gateway parameters with the same
+names.
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| `control_mode` | string | `topic` | Active command source. Must be `keyboard`, `web`, or `topic`. |
+| `jog_output_topic` | string | `/elac_tester_node/jog` | Topic on which accepted signed jog commands are published. |
+| `jog_input_topic` | string | `/vhit_robot_ui_gateway/jog` | Topic subscribed to in `topic` mode. |
+| `joint_state_topic` | string | `/joint_states` | Joint-state feedback topic monitored in every mode. |
+| `joint_name` | string | `elac_node` | Entry in `JointState.name` whose position and velocity are monitored. |
+| `web_host` | string | `127.0.0.1` | HTTP bind address used in `web` mode. |
+| `web_port` | integer | `8080` | HTTP port used in `web` mode. |
+
+For example, to use custom command and feedback topics in topic mode:
+
+```bash
+ros2 launch vhit_robot_ui_gateway gateway.launch.py \
+  control_mode:=topic \
+  jog_input_topic:=/operator/jog \
+  jog_output_topic:=/elac_tester_node/jog \
+  joint_state_topic:=/robot/joint_states \
+  joint_name:=elac_node
+```
+
+The node can also be run directly. Pass the same values as ROS parameters:
 
 ```bash
 ros2 run vhit_robot_ui_gateway gateway_node --ros-args \
-  -p keyboard_control:=true \
-  -p jog_topic:=/my_robot/jog
+  -p control_mode:=keyboard \
+  -p jog_output_topic:=/elac_tester_node/jog \
+  -p joint_state_topic:=/joint_states \
+  -p joint_name:=elac_node
 ```
 
-The subscriber must be configured to use the same topic.
+When the node is run directly, the default `jog_input_topic` is the private
+topic `~/jog`, which resolves to `/vhit_robot_ui_gateway/jog` with the default
+node name.
+
+## ROS Interfaces
+
+| Direction | Topic | Type | Description |
+| --- | --- | --- | --- |
+| Published | `/elac_tester_node/jog` | `std_msgs/msg/Int8` | Accepted jog direction sent to the tester. |
+| Subscribed | `/vhit_robot_ui_gateway/jog` | `std_msgs/msg/Int8` | Command input used only in `topic` mode. |
+| Subscribed | `/joint_states` | `sensor_msgs/msg/JointState` | Position and velocity feedback used in every mode. |
+
+The table shows the default topic names. Use the corresponding parameters to
+override them.
 
 ## Verify Operation
 
-Inspect the topic from a third sourced terminal:
+Inspect the gateway output from another sourced terminal:
 
 ```bash
 ros2 topic echo /elac_tester_node/jog
 ```
 
-Pressing the left and right arrows should produce messages containing `-1` and
-`1`, respectively. The gateway also logs every detected arrow key and every
-published direction.
+After fresh joint feedback has arrived, a command in the selected mode should
+produce a message containing `-1` or `1`. The gateway logs accepted output and
+rejected invalid or stale-feedback commands.
 
 Useful checks:
 
 ```bash
 ros2 node list
 ros2 topic info /elac_tester_node/jog --verbose
-ros2 param get /vhit_robot_ui_gateway keyboard_control
-ros2 param get /vhit_robot_ui_gateway jog_topic
+ros2 topic echo /joint_states
+ros2 param dump /vhit_robot_ui_gateway
 ```
 
 ## Tests
@@ -167,7 +248,7 @@ ros2 param get /vhit_robot_ui_gateway jog_topic
 Run the package tests from the ROS workspace:
 
 ```bash
-cd /home/riky/vhit-robot-ui/ros
+cd /home/<user>/vhit-robot-ui/ros
 source /opt/ros/humble/setup.bash
 colcon test --packages-select vhit_robot_ui_gateway
 colcon test-result --verbose
@@ -175,14 +256,33 @@ colcon test-result --verbose
 
 ## Troubleshooting
 
-### Arrow keys produce no commands
+### Commands are rejected because feedback is stale
 
-- Start the gateway with `keyboard_control:=true`.
+- Confirm that `joint_state_topic` is receiving messages.
+- Confirm that every message contains `joint_name` and a finite position.
+- Keep joint feedback publishing continuously; it is considered stale after
+  one second.
+
+### Arrow keys produce no commands in keyboard mode
+
+- Run the gateway with `control_mode:=keyboard`.
 - Run it directly in an interactive terminal rather than through redirected
   input or a background service.
-- Confirm that the gateway and tester use the same `ROS_DOMAIN_ID` and jog
-  topic.
-- Check the topic directly with `ros2 topic echo`.
+- Confirm that the gateway is receiving fresh joint state feedback.
+
+### The web page is unavailable
+
+- Run the gateway with `control_mode:=web`.
+- Confirm the URL uses the configured `web_host` and `web_port`.
+- Use `web_host:=0.0.0.0` when access from another machine is required, and
+  confirm that the host firewall permits the configured port.
+
+### Topic commands do not reach the tester
+
+- Run the gateway with `control_mode:=topic`.
+- Confirm the publisher uses `jog_input_topic`, not `jog_output_topic`.
+- Publish only `std_msgs/msg/Int8` values `-1` or `1`.
+- Confirm that the gateway is receiving fresh joint state feedback.
 
 ### Commands are published but the actuator does not move
 

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+  <title>VHIT Robot Control</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <main class="application">
+    <header>
+      <div>
+        <h1>VHIT ELAC Control</h1>
+        <p>Actuator jog and feedback test</p>
+      </div>
+
+      <div id="connection-status" class="status disconnected">
+        No feedback
+      </div>
+    </header>
+
+    <section class="panel">
+      <h2>Measured state</h2>
+
+      <div class="measurement">
+        <span>Position</span>
+        <strong id="joint-position">--</strong>
+        <span>rad</span>
+      </div>
+
+      <div class="actuator">
+        <div id="actuator-shaft" class="actuator-shaft"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Jog</h2>
+
+      <div class="jog-controls">
+        <button
+          id="jog-negative"
+          type="button"
+          aria-label="Jog negative"
+        >
+          ←
+        </button>
+
+        <button
+          id="jog-positive"
+          type="button"
+          aria-label="Jog positive"
+        >
+          →
+        </button>
+      </div>
+
+      <p class="help">
+        Use the buttons or the left and right arrow keys.
+      </p>
+
+      <p id="command-result" class="command-result"></p>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
