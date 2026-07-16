@@ -10,13 +10,19 @@ from queue import Full, Queue
 from typing import Any
 from urllib.parse import urlparse
 
-from vhit_robot_ui_gateway.state_store import RobotStateStore
+import re
 
+from vhit_robot_ui_gateway.state_store import RobotStateStore
+from vhit_robot_ui_gateway.trajectory_publisher import TrajectoryPublisher
+from vhit_robot_ui_gateway.waypoint_repository import WaypointRepository
 
 def make_request_handler(
     www_directory: Path,
     command_queue: Queue[int],
     state_store: RobotStateStore,
+    waypoint_repository: WaypointRepository,
+    trajectory_publisher: TrajectoryPublisher,
+    default_move_duration: float,
 ) -> type[SimpleHTTPRequestHandler]:
 
     class GatewayRequestHandler(SimpleHTTPRequestHandler):
@@ -29,6 +35,15 @@ def make_request_handler(
 
         def do_GET(self) -> None:
             path = urlparse(self.path).path
+
+            if path == "/api/v1/waypoints":
+                self._send_json(
+                    HTTPStatus.OK,
+                    {
+                        "waypoints": waypoint_repository.list(),
+                    },
+                )
+                return
 
             if path == "/api/v1/state":
                 self._send_json(
@@ -44,14 +59,32 @@ def make_request_handler(
 
         def do_POST(self) -> None:
             path = urlparse(self.path).path
+            execute_match = re.fullmatch(
+                r"/api/v1/waypoints/([^/]+)/execute",
+                path,
+            )
 
-            if path != "/api/v1/jog":
+            if execute_match:
+                waypoint_id = execute_match.group(1)
+                self._handle_execute_POST(waypoint_id = waypoint_id)
+                return
+            if path == "/api/v1/playback":
+                self._handle_playback_POST()
+                return
+            if path == "/api/v1/jog":
+                self._handle_jog_POST()
+                return
+            if path == "/api/v1/waypoints":
+                self._handle_waypoints_POST()
+                return
+            else:
                 self._send_json(
                     HTTPStatus.NOT_FOUND,
                     {"error": "Endpoint not found"},
                 )
                 return
-
+        
+        def _handle_jog_POST(self) -> None:
             try:
                 request = self._read_json()
                 direction = int(request["direction"])
@@ -97,6 +130,161 @@ def make_request_handler(
                     "accepted": True,
                     "direction": direction,
                 },
+            )
+
+        def _handle_waypoints_POST(self) -> None:
+            
+            request = self._read_json()
+            state = state_store.snapshot()
+
+            if not state["feedback_fresh"]:
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {
+                        "error": (
+                            "Cannot teach waypoint because "
+                            "feedback is unavailable or stale"
+                        )
+                    },
+                )
+                return
+
+            waypoint = waypoint_repository.create(
+                name=str(request.get("name", "")),
+                position=float(state["position"]),
+            )
+
+            self._send_json(
+                HTTPStatus.CREATED,
+                waypoint,
+            )
+            return
+        
+        def _handle_execute_POST(self, waypoint_id: str) -> None:
+            waypoint = waypoint_repository.get(
+                waypoint_id
+            )
+
+            if waypoint is None:
+                self._send_json(
+                    HTTPStatus.NOT_FOUND,
+                    {"error": "Waypoint not found"},
+                )
+                return
+
+            state = state_store.snapshot()
+
+            if not state["feedback_fresh"]:
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {"error": "Robot feedback is stale"},
+                )
+                return
+
+            request = self._read_json()
+            duration = float(
+                request.get(
+                    "duration",
+                    default_move_duration,
+                )
+            )
+
+            trajectory_publisher.move_to(
+                position=float(waypoint["position"]),
+                duration=duration,
+            )
+
+            self._send_json(
+                HTTPStatus.ACCEPTED,
+                {
+                    "accepted": True,
+                    "waypoint": waypoint,
+                    "duration": duration,
+                },
+            )
+
+
+        def _handle_playback_POST(self) -> None:
+            request = self._read_json()
+
+            move_duration = float(
+                request.get(
+                    "move_duration",
+                    default_move_duration,
+                )
+            )
+
+            hold_time = float(
+                request.get("hold_time", 0.0)
+            )
+
+            waypoints = waypoint_repository.list()
+
+            if not waypoints:
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {"error": "No waypoints are stored"},
+                )
+                return
+
+            state = state_store.snapshot()
+
+            if not state["feedback_fresh"]:
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {"error": "Robot feedback is stale"},
+                )
+                return
+
+            trajectory_publisher.execute(
+                [
+                    {
+                        "position": waypoint["position"],
+                        "duration": move_duration,
+                        "hold_time": hold_time,
+                    }
+                    for waypoint in waypoints
+                ]
+            )
+
+            self._send_json(
+                HTTPStatus.ACCEPTED,
+                {
+                    "accepted": True,
+                    "waypoint_count": len(waypoints),
+                },
+            )
+            return
+        
+        def do_DELETE(self) -> None:
+            path = urlparse(self.path).path
+
+            match = re.fullmatch(
+                r"/api/v1/waypoints/([^/]+)",
+                path,
+            )
+
+            if not match:
+                self._send_json(
+                    HTTPStatus.NOT_FOUND,
+                    {"error": "Endpoint not found"},
+                )
+                return
+
+            deleted = waypoint_repository.delete(
+                match.group(1)
+            )
+
+            if not deleted:
+                self._send_json(
+                    HTTPStatus.NOT_FOUND,
+                    {"error": "Waypoint not found"},
+                )
+                return
+
+            self._send_json(
+                HTTPStatus.OK,
+                {"deleted": True},
             )
 
         def _read_json(self) -> dict[str, Any]:
@@ -149,11 +337,17 @@ class ApiServer:
         www_directory: Path,
         command_queue: Queue[int],
         state_store: RobotStateStore,
+        waypoint_repository: WaypointRepository,
+        trajectory_publisher: TrajectoryPublisher,
+        default_move_duration: float,
     ) -> None:
         handler = make_request_handler(
             www_directory=www_directory,
             command_queue=command_queue,
             state_store=state_store,
+            waypoint_repository=waypoint_repository,
+            trajectory_publisher=trajectory_publisher,
+            default_move_duration=default_move_duration,
         )
 
         self._server = ThreadingHTTPServer(

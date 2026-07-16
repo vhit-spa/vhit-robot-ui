@@ -194,3 +194,94 @@ button {
     height: 380px;
   }
 }
+
+.waypoint-panel {
+  padding: 20px;
+  margin-bottom: 20px;
+  border: 1px solid #dce0e4;
+  border-radius: 8px;
+  background: white;
+}
+
+.waypoint-header,
+.playback-controls,
+.waypoint-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.waypoint-header {
+  justify-content: space-between;
+}
+
+.waypoint-name-row {
+  margin: 20px 0;
+}
+
+.waypoint-name-row label {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.waypoint-name-row input,
+.playback-controls input {
+  padding: 8px;
+  border: 1px solid #aeb5bc;
+  border-radius: 6px;
+}
+
+.waypoint-list {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.waypoint-row {
+  padding: 12px;
+  border: 1px solid #dce0e4;
+  border-radius: 6px;
+}
+
+.waypoint-row > div:nth-child(2) {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+}
+
+.waypoint-row span {
+  color: #626c76;
+}
+
+.waypoint-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.waypoint-actions button,
+.primary-button {
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.primary-button {
+  color: white;
+  background: #263746;
+}
+
+.waypoint-actions button {
+  border: 1px solid #aeb5bc;
+  background: white;
+}
+
+.playback-controls {
+  flex-wrap: wrap;
+}
+
+.playback-controls label {
+  display: grid;
+  gap: 6px;
+}

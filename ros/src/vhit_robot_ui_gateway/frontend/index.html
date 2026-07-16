@@ -97,6 +97,79 @@
         aria-live="polite"
       ></p>
     </section>
+    <section class="waypoint-panel">
+      <div class="waypoint-header">
+        <div>
+          <h2>Waypoints</h2>
+          <p>
+            Store the current measured actuator position.
+          </p>
+        </div>
+
+        <button
+          id="teach-waypoint"
+          type="button"
+          class="primary-button"
+        >
+          Teach current position
+        </button>
+      </div>
+
+      <div class="waypoint-name-row">
+        <label for="waypoint-name">
+          Waypoint name
+        </label>
+
+        <input
+          id="waypoint-name"
+          type="text"
+          placeholder="For example: Position A"
+        >
+      </div>
+
+      <div
+        id="waypoint-list"
+        class="waypoint-list"
+      ></div>
+
+      <div class="playback-controls">
+        <label>
+          Move duration
+          <input
+            id="playback-duration"
+            type="number"
+            min="0.1"
+            step="0.1"
+            value="1.0"
+          >
+        </label>
+
+        <label>
+          Hold time
+          <input
+            id="playback-hold-time"
+            type="number"
+            min="0"
+            step="0.1"
+            value="0.2"
+          >
+        </label>
+
+        <button
+          id="play-waypoints"
+          type="button"
+          class="primary-button"
+        >
+          Play all
+        </button>
+      </div>
+
+      <p
+        id="waypoint-result"
+        class="command-result"
+        aria-live="polite"
+      ></p>
+    </section>
   </main>
 </body>
 </html>

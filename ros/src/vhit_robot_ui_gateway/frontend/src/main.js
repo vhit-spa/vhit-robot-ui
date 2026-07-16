@@ -45,6 +45,36 @@ const resetCameraButton = document.getElementById(
 
 const viewer = new ActuatorViewer(viewerContainer);
 
+
+const teachWaypointButton = document.getElementById(
+  "teach-waypoint",
+);
+
+const waypointNameInput = document.getElementById(
+  "waypoint-name",
+);
+
+const waypointListElement = document.getElementById(
+  "waypoint-list",
+);
+
+const playWaypointsButton = document.getElementById(
+  "play-waypoints",
+);
+
+const playbackDurationInput = document.getElementById(
+  "playback-duration",
+);
+
+const playbackHoldTimeInput = document.getElementById(
+  "playback-hold-time",
+);
+
+const waypointResultElement = document.getElementById(
+  "waypoint-result",
+);
+
+
 viewerContainer
   .querySelector(".viewer-loading")
   ?.remove();
@@ -191,6 +221,92 @@ async function sendRepeatedJog(direction) {
   }
 }
 
+async function loadWaypoints() {
+  try {
+    const response = await fetch(
+      "./api/v1/waypoints",
+      {
+        cache: "no-store",
+      },
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        result.error ?? "Unable to load waypoints",
+      );
+    }
+
+    renderWaypoints(result.waypoints);
+  } catch (error) {
+    waypointResultElement.textContent = error.message;
+  }
+}
+
+
+function renderWaypoints(waypoints) {
+  waypointListElement.replaceChildren();
+
+  if (waypoints.length === 0) {
+    const emptyMessage = document.createElement("p");
+    emptyMessage.textContent = "No waypoints stored.";
+    waypointListElement.appendChild(emptyMessage);
+    return;
+  }
+
+  waypoints.forEach((waypoint, index) => {
+    const row = document.createElement("div");
+    row.className = "waypoint-row";
+
+    const description = document.createElement("div");
+
+    const name = document.createElement("strong");
+    name.textContent = waypoint.name;
+
+    const position = document.createElement("span");
+    position.textContent =
+      `${waypoint.position.toFixed(4)} rad`;
+
+    description.append(name, position);
+
+    const controls = document.createElement("div");
+    controls.className = "waypoint-actions";
+
+    const executeButton = document.createElement("button");
+    executeButton.type = "button";
+    executeButton.textContent = "Move";
+
+    executeButton.addEventListener("click", () => {
+      executeWaypoint(waypoint.id);
+    });
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.textContent = "Delete";
+
+    deleteButton.addEventListener("click", () => {
+      deleteWaypoint(waypoint.id);
+    });
+
+    controls.append(
+      executeButton,
+      deleteButton,
+    );
+
+    const indexElement = document.createElement("span");
+    indexElement.textContent = `${index + 1}.`;
+    indexElement.className = "waypoint-index";
+
+    row.append(
+      indexElement,
+      description,
+      controls,
+    );
+
+    waypointListElement.appendChild(row);
+  });
+}
 
 function startJog(direction) {
   if (direction !== -1 && direction !== 1) {
@@ -248,6 +364,153 @@ function configureHoldButton(button, direction) {
   button.addEventListener("lostpointercapture", stopJog);
 }
 
+async function teachWaypoint() {
+  waypointResultElement.textContent = "";
+
+  try {
+    const response = await fetch(
+      "./api/v1/waypoints",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: waypointNameInput.value,
+        }),
+      },
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        result.error ?? "Waypoint creation failed",
+      );
+    }
+
+    waypointNameInput.value = "";
+
+    waypointResultElement.textContent =
+      `Stored ${result.name}`;
+
+    await loadWaypoints();
+  } catch (error) {
+    waypointResultElement.textContent = error.message;
+  }
+}
+
+async function executeWaypoint(waypointId) {
+  waypointResultElement.textContent = "";
+
+  try {
+    const duration = Number(
+      playbackDurationInput.value
+    );
+
+    const response = await fetch(
+      `./api/v1/waypoints/${waypointId}/execute`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          duration,
+        }),
+      },
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        result.error ?? "Waypoint execution failed",
+      );
+    }
+
+    waypointResultElement.textContent =
+      `Moving to ${result.waypoint.name}`;
+  } catch (error) {
+    waypointResultElement.textContent = error.message;
+  }
+}
+
+async function deleteWaypoint(waypointId) {
+  try {
+    const response = await fetch(
+      `./api/v1/waypoints/${waypointId}`,
+      {
+        method: "DELETE",
+      },
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        result.error ?? "Waypoint deletion failed",
+      );
+    }
+
+    await loadWaypoints();
+  } catch (error) {
+    waypointResultElement.textContent = error.message;
+  }
+}
+
+async function playWaypoints() {
+  waypointResultElement.textContent = "";
+
+  try {
+    const moveDuration = Number(
+      playbackDurationInput.value
+    );
+
+    const holdTime = Number(
+      playbackHoldTimeInput.value
+    );
+
+    const response = await fetch(
+      "./api/v1/playback",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          move_duration: moveDuration,
+          hold_time: holdTime,
+        }),
+      },
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        result.error ?? "Playback failed",
+      );
+    }
+
+    waypointResultElement.textContent =
+      `Playing ${result.waypoint_count} waypoints`;
+  } catch (error) {
+    waypointResultElement.textContent = error.message;
+  }
+}
+
+teachWaypointButton.addEventListener(
+  "click",
+  teachWaypoint,
+);
+
+playWaypointsButton.addEventListener(
+  "click",
+  playWaypoints,
+);
+
+loadWaypoints();
 
 configureHoldButton(jogNegativeButton, -1);
 configureHoldButton(jogPositiveButton, 1);

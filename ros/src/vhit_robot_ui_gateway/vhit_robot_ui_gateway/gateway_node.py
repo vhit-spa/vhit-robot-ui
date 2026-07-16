@@ -13,7 +13,8 @@ from vhit_robot_ui_gateway.api_server import ApiServer
 from vhit_robot_ui_gateway.jog_publisher import JogPublisher
 from vhit_robot_ui_gateway.keyboard_controller import KeyboardController
 from vhit_robot_ui_gateway.state_store import RobotStateStore
-
+from vhit_robot_ui_gateway.trajectory_publisher import TrajectoryPublisher
+from vhit_robot_ui_gateway.waypoint_repository import WaypointRepository
 
 class RobotUiGatewayNode(Node):
     VALID_CONTROL_MODES = {
@@ -52,6 +53,18 @@ class RobotUiGatewayNode(Node):
         self.declare_parameter(
             "web_port",
             8080,
+        )
+        self.declare_parameter(
+            "trajectory_topic",
+            "/vhit_elac_controller/joint_trajectory",
+        )
+        self.declare_parameter(
+            "waypoint_storage_file",
+            "~/.vhit_robot_ui/waypoints.json",
+        )
+        self.declare_parameter(
+            "waypoint_move_duration",
+            1.0,
         )
 
         self._control_mode = str(
@@ -98,6 +111,34 @@ class RobotUiGatewayNode(Node):
         self._command_timer = self.create_timer(
             0.02,
             self._process_command_queue,
+        )
+
+        trajectory_topic = str(
+            self.get_parameter("trajectory_topic").value
+        )
+
+        storage_file = Path(
+            str(
+                self.get_parameter(
+                    "waypoint_storage_file"
+                ).value
+            )
+        ).expanduser()
+
+        self._waypoint_move_duration = float(
+            self.get_parameter(
+                "waypoint_move_duration"
+            ).value
+        )
+
+        self._trajectory_publisher = TrajectoryPublisher(
+            node=self,
+            topic=trajectory_topic,
+            joint_name=joint_name,
+        )
+
+        self._waypoint_repository = WaypointRepository(
+            storage_file=storage_file,
         )
 
         self._keyboard_controller: KeyboardController | None = None
@@ -158,6 +199,9 @@ class RobotUiGatewayNode(Node):
             www_directory=package_share / "www",
             command_queue=self._command_queue,
             state_store=self._state_store,
+            waypoint_repository=self._waypoint_repository,
+            trajectory_publisher=self._trajectory_publisher,
+            default_move_duration=self._waypoint_move_duration,
         )
         self._api_server.start()
 

@@ -2,6 +2,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description() -> LaunchDescription:
@@ -65,6 +66,22 @@ def generate_launch_description() -> LaunchDescription:
                     "HTTP server port used when control_mode=web"
                 ),
             ),
+            DeclareLaunchArgument(
+                "trajectory_topic",
+                default_value=(
+                    "/vhit_elac_controller/joint_trajectory"
+                ),
+            ),
+            DeclareLaunchArgument(
+                "waypoint_storage_file",
+                default_value=(
+                    "~/.vhit_robot_ui/waypoints.json"
+                ),
+            ),
+            DeclareLaunchArgument(
+                "waypoint_move_duration",
+                default_value="1.0",
+            ),
             Node(
                 package="vhit_robot_ui_gateway",
                 executable="gateway_node",
@@ -80,6 +97,18 @@ def generate_launch_description() -> LaunchDescription:
                         "joint_name": joint_name,
                         "web_host": web_host,
                         "web_port": web_port,
+                        "trajectory_topic": LaunchConfiguration(
+                            "trajectory_topic"
+                        ),
+                        "waypoint_storage_file": LaunchConfiguration(
+                            "waypoint_storage_file"
+                        ),
+                         "waypoint_move_duration": ParameterValue(
+                            LaunchConfiguration(
+                                "waypoint_move_duration"
+                            ),
+                            value_type=float,
+                        ),
                     }
                 ],
             ),
