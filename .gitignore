@@ -18,3 +18,30 @@ __pycache__/
 
 # VS Code
 .vscode/
+
+# Node.js dependencies
+**/node_modules/
+
+# Vite build output
+ros/src/vhit_robot_ui_gateway/www/*
+!ros/src/vhit_robot_ui_gateway/www/.gitkeep
+
+# Vite cache
+**/.vite/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment files
+**/.env
+**/.env.*
+!**/.env.example
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

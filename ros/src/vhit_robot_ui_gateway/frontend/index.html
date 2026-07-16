@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>VHIT Robot UI</title>
+
+  <script type="module" src="/src/main.js"></script>
+</head>
+
+<body>
+  <main class="application">
+    <header class="application-header">
+      <div>
+        <h1>VHIT ELAC Control</h1>
+        <p>Actuator visualization and manual jogging</p>
+      </div>
+
+      <div
+        id="connection-status"
+        class="status disconnected"
+      >
+        Waiting for feedback
+      </div>
+    </header>
+
+    <section class="viewer-panel">
+      <div class="viewer-toolbar">
+        <div>
+          <h2>Actuator view</h2>
+
+          <span id="viewer-position">
+            Position: -- rad
+          </span>
+        </div>
+
+        <button
+          id="reset-camera"
+          type="button"
+          class="secondary-button"
+        >
+          Reset view
+        </button>
+      </div>
+
+      <div
+        id="actuator-viewer"
+        class="actuator-viewer"
+      >
+        <div class="viewer-loading">
+          Initializing 3D viewer…
+        </div>
+      </div>
+    </section>
+
+    <section class="control-panel">
+      <h2>Jog control</h2>
+
+      <div class="measurement">
+        <span>Measured position</span>
+
+        <strong id="joint-position">--</strong>
+
+        <span>rad</span>
+      </div>
+
+      <div class="jog-controls">
+        <button
+          id="jog-negative"
+          type="button"
+          aria-label="Jog actuator in the negative direction"
+        >
+          ←
+        </button>
+
+        <button
+          id="jog-positive"
+          type="button"
+          aria-label="Jog actuator in the positive direction"
+        >
+          →
+        </button>
+      </div>
+
+      <p class="help">
+        Use the buttons or the left and right arrow keys.
+      </p>
+
+      <p
+        id="command-result"
+        class="command-result"
+        aria-live="polite"
+      ></p>
+    </section>
+  </main>
+</body>
+</html>
