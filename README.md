@@ -1,5 +1,7 @@
 # VHIT Robot UI
 
+![VHIT Robot UI Gif](docs/vhit-robot-ui.gif)
+
 ROS 2 gateway for controlling the VHIT ELAC robot through keyboard input, the
 built-in web interface, or a ROS topic.
 
