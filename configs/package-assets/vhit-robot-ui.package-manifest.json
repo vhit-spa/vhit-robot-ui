@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.boschrexroth.com/ctrlx-automation/ctrlx-core/apps/package-manifest/package-manifest.v1.3.schema.json",
+  "version": "1.0.0",
+  "id": "vhit-robot-ui",
+  "services": {
+    "proxyMapping": [
+      {
+        "name": "vhit-robot-ui.web",
+        "url": "/vhit-robot-ui",
+        "binding": "unix://{$SNAP_DATA}/package-run/vhit-robot-ui/web.sock",
+        "restricted": [
+          "/vhit-robot-ui/api/v1"
+        ]
+      }
+    ]
+  },
+  "menus": {
+    "sidebar": [
+      {
+        "id": "vhit-robot-ui",
+        "target": "_blank",
+        "title": "VHIT Robot UI",
+        "icon": "bosch-ic-robot",
+        "link": "/vhit-robot-ui/?token=${bearertoken}"
+      }
+    ],
+    "settings": [],
+    "overview": [
+      {
+        "id": "vhit-robot-ui",
+        "target": "_blank",
+        "title": "VHIT Robot UI",
+        "icon": "bosch-ic-robot",
+        "link": "/vhit-robot-ui/?token=${bearertoken}"
+      }
+    ]
+  }
+}

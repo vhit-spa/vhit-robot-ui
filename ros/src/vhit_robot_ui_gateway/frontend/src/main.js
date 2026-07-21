@@ -5,6 +5,29 @@ import {
 } from "./viewer/ActuatorViewer.js";
 
 const JOG_REPEAT_INTERVAL_MS = 100;
+const STATE_REFRESH_INTERVAL_MS = 500;
+
+const pageUrl = new URL(window.location.href);
+const bearerToken = pageUrl.searchParams.get("token");
+
+if (bearerToken !== null) {
+  pageUrl.searchParams.delete("token");
+  window.history.replaceState(null, "", pageUrl);
+}
+
+
+function apiFetch(path, options = {}) {
+  const headers = new Headers(options.headers);
+
+  if (bearerToken !== null) {
+    headers.set("Authorization", `Bearer ${bearerToken}`);
+  }
+
+  return fetch(path, {
+    ...options,
+    headers,
+  });
+}
 
 let jogIntervalId = null;
 let activeJogDirection = 0;
@@ -146,7 +169,7 @@ function applyRobotState(state) {
 
 async function updateState() {
   try {
-    const response = await fetch("./api/v1/state", {
+    const response = await apiFetch("./api/v1/state", {
       cache: "no-store",
     });
 
@@ -177,7 +200,7 @@ async function jog(direction) {
   resultElement.textContent = "";
 
   try {
-    const response = await fetch("./api/v1/jog", {
+    const response = await apiFetch("./api/v1/jog", {
       method: "POST",
 
       headers: {
@@ -223,7 +246,7 @@ async function sendRepeatedJog(direction) {
 
 async function loadWaypoints() {
   try {
-    const response = await fetch(
+    const response = await apiFetch(
       "./api/v1/waypoints",
       {
         cache: "no-store",
@@ -368,7 +391,7 @@ async function teachWaypoint() {
   waypointResultElement.textContent = "";
 
   try {
-    const response = await fetch(
+    const response = await apiFetch(
       "./api/v1/waypoints",
       {
         method: "POST",
@@ -408,7 +431,7 @@ async function executeWaypoint(waypointId) {
       playbackDurationInput.value
     );
 
-    const response = await fetch(
+    const response = await apiFetch(
       `./api/v1/waypoints/${waypointId}/execute`,
       {
         method: "POST",
@@ -438,7 +461,7 @@ async function executeWaypoint(waypointId) {
 
 async function deleteWaypoint(waypointId) {
   try {
-    const response = await fetch(
+    const response = await apiFetch(
       `./api/v1/waypoints/${waypointId}`,
       {
         method: "DELETE",
@@ -471,7 +494,7 @@ async function playWaypoints() {
       playbackHoldTimeInput.value
     );
 
-    const response = await fetch(
+    const response = await apiFetch(
       "./api/v1/playback",
       {
         method: "POST",
@@ -574,4 +597,4 @@ window.addEventListener("beforeunload", () => {
 setControlsEnabled(false);
 updateState();
 
-window.setInterval(updateState, 100);
+window.setInterval(updateState, STATE_REFRESH_INTERVAL_MS);

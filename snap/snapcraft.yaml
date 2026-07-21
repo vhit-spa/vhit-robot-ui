@@ -1,0 +1,76 @@
+name: vhit-robot-ui
+title: VHIT Robot UI
+version: "0.0.1"
+summary: Browser UI for controlling the VHIT ELAC robot
+description: |
+  ROS 2 gateway and browser-based operator interface for the VHIT ELAC robot.
+
+base: core22
+grade: devel
+confinement: strict
+
+architectures:
+  - build-on: [amd64, arm64]
+    build-for: [amd64]
+
+  - build-on: [amd64, arm64]
+    build-for: [arm64]
+
+parts:
+  ros-app:
+    plugin: dump
+    source: ./ros/install
+
+  scripts:
+    plugin: dump
+    source: ./scripts
+    organize:
+      "*": usr/bin/
+
+  configs:
+    plugin: dump
+    source: ./configs
+    organize:
+      "package-assets/*": package-assets/${SNAPCRAFT_PROJECT_NAME}/
+
+apps:
+  ui:
+    command: usr/bin/run-ui.sh
+    daemon: simple
+    restart-condition: on-failure
+    plugs:
+      - ros-base
+      - moveit-runtime
+      - network
+      - network-bind
+    slots:
+      - package-assets
+      - package-run
+    environment:
+      ROS_DISTRO: humble
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+
+plugs:
+  ros-base:
+    interface: content
+    content: executables
+    target: $SNAP/rosruntime
+  moveit-runtime:
+    interface: content
+    content: moveit-runtime
+    target: $SNAP/moveit-runtime
+    
+slots:
+  package-assets:
+    interface: content
+    content: package-assets
+    source:
+      read:
+        - $SNAP/package-assets/${SNAPCRAFT_PROJECT_NAME}
+
+  package-run:
+    interface: content
+    content: package-run
+    source:
+      write:
+        - $SNAP_DATA/package-run/${SNAPCRAFT_PROJECT_NAME}

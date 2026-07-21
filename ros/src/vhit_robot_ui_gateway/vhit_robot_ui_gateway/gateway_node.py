@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from queue import Empty, Queue
 
@@ -193,9 +194,21 @@ class RobotUiGatewayNode(Node):
             )
         )
 
+        snap_data = os.environ.get("SNAP_DATA")
+
+        socket_path = None
+        if snap_data:
+            socket_path = (
+                Path(snap_data)
+                / "package-run"
+                / "vhit-robot-ui"
+                / "web.sock"
+            )
+
         self._api_server = ApiServer(
             host=web_host,
             port=web_port,
+            socket_path=socket_path,
             www_directory=package_share / "www",
             command_queue=self._command_queue,
             state_store=self._state_store,

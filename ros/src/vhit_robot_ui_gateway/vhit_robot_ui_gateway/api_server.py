@@ -15,6 +15,7 @@ import re
 from vhit_robot_ui_gateway.state_store import RobotStateStore
 from vhit_robot_ui_gateway.trajectory_publisher import TrajectoryPublisher
 from vhit_robot_ui_gateway.waypoint_repository import WaypointRepository
+from vhit_robot_ui_gateway.threading_unix_socket_server import ThreadingUnixHTTPServer
 
 def make_request_handler(
     www_directory: Path,
@@ -26,6 +27,8 @@ def make_request_handler(
 ) -> type[SimpleHTTPRequestHandler]:
 
     class GatewayRequestHandler(SimpleHTTPRequestHandler):
+        ROUTE_PREFIX = "/vhit-robot-ui"
+
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             super().__init__(
                 *args,
@@ -33,8 +36,27 @@ def make_request_handler(
                 **kwargs,
             )
 
-        def do_GET(self) -> None:
+        def _application_path(self) -> str | None:
             path = urlparse(self.path).path
+
+            if path == self.ROUTE_PREFIX:
+                return "/"
+
+            if path.startswith(self.ROUTE_PREFIX + "/"):
+                return path[len(self.ROUTE_PREFIX):]
+
+            # Preserve direct local-development access.
+            if not path.startswith(self.ROUTE_PREFIX):
+                return path
+
+            return None
+
+        def do_GET(self) -> None:
+            path = self._application_path()
+
+            if path is None:
+                self.send_error(HTTPStatus.NOT_FOUND)
+                return
 
             if path == "/api/v1/waypoints":
                 self._send_json(
@@ -53,12 +75,13 @@ def make_request_handler(
                 return
 
             if path == "/":
-                self.path = "/index.html"
+                path = "/index.html"
 
+            self.path = path
             super().do_GET()
 
         def do_POST(self) -> None:
-            path = urlparse(self.path).path
+            path = self._application_path()
             execute_match = re.fullmatch(
                 r"/api/v1/waypoints/([^/]+)/execute",
                 path,
@@ -257,7 +280,7 @@ def make_request_handler(
             return
         
         def do_DELETE(self) -> None:
-            path = urlparse(self.path).path
+            path = self._application_path()
 
             match = re.fullmatch(
                 r"/api/v1/waypoints/([^/]+)",
@@ -340,6 +363,7 @@ class ApiServer:
         waypoint_repository: WaypointRepository,
         trajectory_publisher: TrajectoryPublisher,
         default_move_duration: float,
+        socket_path: Path | None = None,
     ) -> None:
         handler = make_request_handler(
             www_directory=www_directory,
@@ -350,10 +374,21 @@ class ApiServer:
             default_move_duration=default_move_duration,
         )
 
-        self._server = ThreadingHTTPServer(
-            (host, port),
-            handler,
-        )
+        self._socket_path = socket_path
+
+        if socket_path is not None:
+            socket_path.parent.mkdir(parents=True, exist_ok=True)
+            socket_path.unlink(missing_ok=True)
+
+            self._server = ThreadingUnixHTTPServer(
+                str(socket_path),
+                handler,
+            )
+        else:
+            self._server = ThreadingHTTPServer(
+                (host, port),
+                handler,
+            )
 
         self._thread = threading.Thread(
             target=self._server.serve_forever,
@@ -368,3 +403,6 @@ class ApiServer:
         self._server.shutdown()
         self._server.server_close()
         self._thread.join(timeout=2.0)
+
+        if self._socket_path is not None:
+            self._socket_path.unlink(missing_ok=True)
