@@ -9,7 +9,9 @@
         "url": "/vhit-robot-ui",
         "binding": "unix://{$SNAP_DATA}/package-run/vhit-robot-ui/web.sock",
         "restricted": [
-          "/vhit-robot-ui/api/v1"
+          "/vhit-robot-ui/api/v1/jog",
+          "/vhit-robot-ui/api/v1/waypoints",
+          "/vhit-robot-ui/api/v1/playback"
         ]
       }
     ]

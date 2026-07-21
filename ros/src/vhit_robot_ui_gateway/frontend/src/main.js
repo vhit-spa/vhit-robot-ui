@@ -5,7 +5,7 @@ import {
 } from "./viewer/ActuatorViewer.js";
 
 const JOG_REPEAT_INTERVAL_MS = 100;
-const STATE_REFRESH_INTERVAL_MS = 500;
+const STATE_REFRESH_INTERVAL_MS = 1000;
 
 const pageUrl = new URL(window.location.href);
 const bearerToken = pageUrl.searchParams.get("token");
@@ -32,6 +32,7 @@ function apiFetch(path, options = {}) {
 let jogIntervalId = null;
 let activeJogDirection = 0;
 let jogRequestInProgress = false;
+let stateRequestInProgress = false;
 
 const viewerContainer = document.getElementById(
   "actuator-viewer",
@@ -168,8 +169,15 @@ function applyRobotState(state) {
 
 
 async function updateState() {
+  if (stateRequestInProgress) {
+    return;
+  }
+
+  stateRequestInProgress = true;
+
   try {
-    const response = await apiFetch("./api/v1/state", {
+    // Robot state is read-only and intentionally not a restricted route.
+    const response = await fetch("./api/v1/state", {
       cache: "no-store",
     });
 
@@ -186,6 +194,8 @@ async function updateState() {
     console.error("Failed to update robot state:", error);
 
     showUnavailableState("Gateway unavailable");
+  } finally {
+    stateRequestInProgress = false;
   }
 }
 
