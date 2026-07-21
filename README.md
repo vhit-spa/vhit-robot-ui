@@ -16,6 +16,8 @@ one second old.
 - Maps negative/left commands to `-1` and positive/right commands to `1`.
 - Monitors the configured joint through `sensor_msgs/msg/JointState`.
 - Provides a browser UI with position feedback in `web` mode.
+- Saves named waypoints from the current measured position and persists them
+  across gateway restarts.
 
 The gateway publishes only the jog direction. The target increment, trajectory
 duration, and position limits are managed by `vhit_elac_tester`.
@@ -134,6 +136,37 @@ Open `http://127.0.0.1:8080` in a browser. Use the left and right buttons or
 the browser's left and right arrow keys to jog. The page displays the latest
 position of the configured joint.
 
+#### Save and use waypoints
+
+Waypoints are available in the browser interface while the gateway is running
+in `web` mode:
+
+1. Jog the actuator to the position you want to save and wait for the position
+   display to update.
+2. Enter an optional name in **Waypoint name**. If the field is empty, the UI
+   assigns a name such as `Waypoint 1`.
+3. Select **Teach current position**. The gateway saves the current measured
+   joint position, not a commanded or pending target position.
+4. Use the **Move** button next to a saved waypoint to move to it, or select
+   **Play all** to visit every saved waypoint in list order.
+5. Set **Move duration** to control the travel time for each move. For
+   **Play all**, **Hold time** controls the pause at each waypoint.
+6. Use the delete button next to a waypoint to remove it.
+
+The gateway can save a waypoint only when it is receiving fresh feedback for
+the configured `joint_name`. If teaching fails because feedback is unavailable
+or stale, verify `/joint_states` and the `joint_name` parameter.
+
+Saved waypoints persist across gateway restarts in
+`~/.vhit_robot_ui/waypoints.json` by default. Set `waypoint_storage_file` when
+launching the gateway to use a different file:
+
+```bash
+ros2 launch vhit_robot_ui_gateway gateway.launch.py \
+  control_mode:=web \
+  waypoint_storage_file:=/home/<user>/vhit-waypoints.json
+```
+
 The default host accepts connections only from the local machine. To expose
 the interface on all network interfaces, set `web_host:=0.0.0.0` and apply the
 appropriate firewall and network-access restrictions.
@@ -144,6 +177,11 @@ The web server also exposes these endpoints:
 | --- | --- |
 | `GET /api/v1/state` | Return the latest configured joint state and feedback freshness. |
 | `POST /api/v1/jog` | Queue a jog using JSON such as `{"direction": 1}` or `{"direction": -1}`. |
+| `GET /api/v1/waypoints` | List all saved waypoints. |
+| `POST /api/v1/waypoints` | Save the current measured position using JSON such as `{"name": "Position A"}`. |
+| `POST /api/v1/waypoints/<id>/execute` | Move to a saved waypoint; accepts an optional `duration` in seconds. |
+| `DELETE /api/v1/waypoints/<id>` | Delete a saved waypoint. |
+| `POST /api/v1/playback` | Play all waypoints using `move_duration` and `hold_time` values in seconds. |
 
 ### Topic mode
 
@@ -185,6 +223,9 @@ names.
 | `joint_name` | string | `elac_node` | Entry in `JointState.name` whose position and velocity are monitored. |
 | `web_host` | string | `127.0.0.1` | HTTP bind address used in `web` mode. |
 | `web_port` | integer | `8080` | HTTP port used in `web` mode. |
+| `trajectory_topic` | string | `/vhit_elac_controller/joint_trajectory` | Joint trajectory topic used to execute saved waypoints. |
+| `waypoint_storage_file` | string | `~/.vhit_robot_ui/waypoints.json` | JSON file used to persist saved waypoints. |
+| `waypoint_move_duration` | float | `1.0` | Default duration in seconds for a move to a waypoint. |
 
 For example, to use custom command and feedback topics in topic mode:
 
